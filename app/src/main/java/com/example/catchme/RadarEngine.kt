@@ -3,14 +3,14 @@ package com.example.catchme
 import kotlin.math.pow
 
 data class RadarBlip(
-    val deviceId: String,      // Best available name
+    val deviceId: String,
     val brand: String,
-    val peakHeadingDegrees: Int,  // Compass heading when signal was strongest
+    val peakHeadingDegrees: Int,
     val openAirDistance: Float,
     val wallDistance: Float,
     val maxRssi: Int,
     val samplesCount: Int,
-    val lastSeenMs: Long           // For stale-device timeout
+    val lastSeenMs: Long
 )
 
 class RadarEngine {
@@ -22,10 +22,6 @@ class RadarEngine {
 
     private val activeDevices = mutableMapOf<String, DeviceRecord>()
 
-    /**
-     * Call this every time a BLE/Classic packet is received.
-     * headingDegrees = current phone compass heading when this packet arrived.
-     */
     fun recordSignal(
         signal: BleSignal,
         headingDegrees: Int,
@@ -33,27 +29,21 @@ class RadarEngine {
     ) {
         val rssi = if (signal.rssi == Short.MIN_VALUE.toInt() || signal.rssi == 0) -70 else signal.rssi
 
-        // ── Distance math ─────────────────────────────────────────────────
-        // Reference TX power at 1m (dBm). Typical BLE beacon: -59
-        val txPower      = -59
-        val airExp       = 2.0          // Free-space path loss exponent
-        val airDist      = 10.0.pow((txPower - rssi) / (10.0 * airExp)).toFloat()
-            .coerceIn(0.3f, 20f)        // 0.3m – 20m, unrestricted
+        val txPower = -59
+        val airExp = 2.0
+        val airDist = 10.0.pow((txPower - rssi) / (10.0 * airExp)).toFloat().coerceIn(0.3f, 20f)
 
-        // Wall model: assume 30cm drywall absorbs ~10 dB
-        val wallRssi     = (rssi + 10.0).coerceAtMost(-40.0)
-        val wallExp      = 2.8
-        val wallDist     = 10.0.pow((txPower - wallRssi) / (10.0 * wallExp)).toFloat()
-            .coerceIn(0.3f, 10f)
+        val wallAttenuationDb = 10.0
+        val wallExp = 2.8
+        val wallRssi = (rssi + wallAttenuationDb).coerceAtMost(-40.0)
+        val wallDist = 10.0.pow((txPower - wallRssi) / (10.0 * wallExp)).toFloat().coerceIn(0.3f, 10f)
 
-        // ── Best name logic ─────────────────────────────────────────────
-        // Priority: real device name > brand > short MAC
         val displayName = when {
-            signal.deviceName.isNotBlank()
-                    && signal.deviceName != "Unknown"
-                    && signal.deviceName != "Nearby Device" -> signal.deviceName
-            signal.brand != "Device" && signal.brand != "BLE Node" -> signal.brand
-            else -> "${signal.brand} [${signal.deviceAddress.takeLast(4)}]"
+            signal.deviceName.isNotBlank() &&
+                signal.deviceName != "Unknown" &&
+                signal.deviceName != "Nearby Device" -> signal.deviceName
+            signal.brand != "Device" -> signal.brand
+            else -> "Device [${signal.deviceAddress.takeLast(4)}]"
         }
 
         val existing = activeDevices[signal.deviceAddress]
@@ -61,35 +51,28 @@ class RadarEngine {
 
         activeDevices[signal.deviceAddress] = DeviceRecord(
             blip = RadarBlip(
-                deviceId           = displayName,
-                brand              = signal.brand,
-                // Only update heading when we get a stronger (peak) signal
-                peakHeadingDegrees = if (isNewPeak) headingDegrees
-                                     else existing!!.blip.peakHeadingDegrees,
-                openAirDistance    = airDist,
-                wallDistance       = wallDist,
-                maxRssi            = if (isNewPeak) rssi else existing!!.blip.maxRssi,
-                samplesCount       = (existing?.blip?.samplesCount ?: 0) + 1,
-                lastSeenMs         = System.currentTimeMillis()
+                deviceId = displayName,
+                brand = signal.brand,
+                peakHeadingDegrees = if (isNewPeak) headingDegrees else existing!!.blip.peakHeadingDegrees,
+                openAirDistance = airDist,
+                wallDistance = wallDist,
+                maxRssi = if (isNewPeak) rssi else existing!!.blip.maxRssi,
+                samplesCount = (existing?.blip?.samplesCount ?: 0) + 1,
+                lastSeenMs = System.currentTimeMillis()
             ),
             bestRssi = if (isNewPeak) rssi else existing!!.bestRssi
         )
     }
 
-    /**
-     * Returns active targets, sorted strongest-first, stale ones removed.
-     * Max 8 so the UI stays clean.
-     */
     fun computeTargets(): List<RadarBlip> {
-        val now    = System.currentTimeMillis()
-        val cutoff = 25_000L   // Remove device if not seen for 25 seconds
+        val now = System.currentTimeMillis()
+        val timeoutMs = 25_000L
 
-        // Purge stale entries in-place
-        activeDevices.entries.removeAll { now - it.value.blip.lastSeenMs > cutoff }
+        activeDevices.entries.removeAll { now - it.value.blip.lastSeenMs > timeoutMs }
 
         return activeDevices.values
             .map { it.blip }
-            .sortedByDescending { it.maxRssi }   // Strongest signal first
+            .sortedByDescending { it.maxRssi }
             .take(8)
     }
 

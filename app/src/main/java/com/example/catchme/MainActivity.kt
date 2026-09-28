@@ -11,16 +11,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 
 class MainActivity : ComponentActivity() {
@@ -28,33 +28,23 @@ class MainActivity : ComponentActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val radarEngine = RadarEngine()
 
-    // All state lives at Activity level so any thread can safely update via mainHandler.post
-    val stateTargets      = mutableStateOf(listOf<RadarBlip>())
-    val statePackets      = mutableIntStateOf(0)
-    val stateLastDevice   = mutableStateOf("---")
-    val stateLastRssi     = mutableIntStateOf(0)
-    val stateScanStatus   = mutableStateOf("IDLE")
-    val stateSteps        = mutableIntStateOf(0)
-    val stateDistance     = mutableFloatStateOf(0f)
-    val stateUserX        = mutableFloatStateOf(0f)
-    val stateUserY        = mutableFloatStateOf(0f)
-    val stateHeadingDeg   = mutableIntStateOf(0)
-    val stateCardinal     = mutableStateOf("N")
+    private val stateTargets = mutableStateOf(listOf<RadarBlip>())
+    private val statePackets = mutableIntStateOf(0)
+    private val stateSteps = mutableIntStateOf(0)
+    private val stateDistance = mutableFloatStateOf(0f)
+    private val stateHeadingDeg = mutableIntStateOf(0)
+    private val stateCardinal = mutableStateOf("N")
 
-    // Created ONCE here — never recreated inside a composable
     private val stepTracker: StepTracker by lazy {
         StepTracker(
             context = this,
-            onStep = { dist, x, y ->
-                // Step sensor fires on main thread already
-                stateSteps.intValue    = stepTracker.totalSteps
+            onStep = { dist, _, _ ->
+                stateSteps.intValue = stepTracker.totalSteps
                 stateDistance.floatValue = dist
-                stateUserX.floatValue  = x
-                stateUserY.floatValue  = y
             },
             onHeadingChanged = { degrees, cardinal ->
                 stateHeadingDeg.intValue = degrees
-                stateCardinal.value      = cardinal
+                stateCardinal.value = cardinal
             }
         )
     }
@@ -63,24 +53,19 @@ class MainActivity : ComponentActivity() {
         BleScanner(
             context = this,
             onSignalDetected = { signal ->
-                // Runs on BT hardware thread — post to main
                 radarEngine.recordSignal(
                     signal,
-                    stateHeadingDeg.intValue,   // Current compass heading
+                    stateHeadingDeg.intValue,
                     stateDistance.floatValue
                 )
                 val newTargets = radarEngine.computeTargets()
-                val newCount   = statePackets.intValue + 1
+                val newCount = statePackets.intValue + 1
                 mainHandler.post {
-                    statePackets.intValue    = newCount
-                    stateLastDevice.value    = signal.deviceName.take(18)
-                    stateLastRssi.intValue   = signal.rssi
-                    stateTargets.value       = newTargets
+                    statePackets.intValue = newCount
+                    stateTargets.value = newTargets
                 }
             },
-            onStatusUpdate = { status ->
-                mainHandler.post { stateScanStatus.value = status }
-            }
+            onStatusUpdate = {}
         )
     }
 
@@ -89,29 +74,13 @@ class MainActivity : ComponentActivity() {
         val activity = this
 
         setContent {
-            // Observe all activity-level state as composable state
-            val targets     by stateTargets
-            val packets     by statePackets
-            val lastDevice  by stateLastDevice
-            val lastRssi    by stateLastRssi
-            val scanStatus  by stateScanStatus
-            val stepCount   by stateSteps
-            val distance    by stateDistance
-            val userX       by stateUserX
-            val userY       by stateUserY
-            val headingDeg  by stateHeadingDeg
-            val cardinal    by stateCardinal
+            val targets by stateTargets
+            val stepCount by stateSteps
+            val distance by stateDistance
+            val headingDeg by stateHeadingDeg
+            val cardinal by stateCardinal
 
-            var isScanning        by remember { mutableStateOf(false) }
-            var corridorWidth     by remember { mutableFloatStateOf(3.0f) }
-            val walkPath          = remember { mutableStateListOf(Offset(0f, 0f)) }
-
-            // Sync walk path when position changes
-            LaunchedEffect(userX, userY) {
-                if (userX != 0f || userY != 0f) {
-                    walkPath.add(Offset(userX, userY))
-                }
-            }
+            var isScanning by remember { mutableStateOf(false) }
 
             val permissionLauncher = rememberLauncherForActivityResult(
                 ActivityResultContracts.RequestMultiplePermissions()
@@ -121,30 +90,24 @@ class MainActivity : ComponentActivity() {
                     stepTracker.start()
                     bleScanner.startScan()
                 } else {
-                    Toast.makeText(activity, "All permissions required!", Toast.LENGTH_LONG).show()
+                    Toast.makeText(activity, "Permissions are required to run radar", Toast.LENGTH_LONG).show()
                 }
             }
 
             Column(modifier = Modifier.fillMaxSize()) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     RadarScreen(
-                        isScanning        = isScanning,
-                        stepCount         = stepCount,
-                        distanceWalked    = distance,
-                        userX             = userX,
-                        userY             = userY,
-                        headingDegrees    = headingDeg,
-                        cardinalHeading   = cardinal,
-                        corridorWidthMeters = corridorWidth,
-                        onCorridorWidthChanged = { corridorWidth = it },
-                        walkPath          = walkPath,
-                        targets           = targets,
-                        onToggleScan      = {
+                        isScanning = isScanning,
+                        stepCount = stepCount,
+                        distanceWalked = distance,
+                        headingDegrees = headingDeg,
+                        cardinalHeading = cardinal,
+                        targets = targets,
+                        onToggleScan = {
                             if (isScanning) {
                                 isScanning = false
                                 stepTracker.stop()
                                 bleScanner.stopScan()
-                                stateScanStatus.value = "STOPPED"
                             } else {
                                 val required = mutableListOf(
                                     Manifest.permission.ACCESS_FINE_LOCATION,
@@ -158,8 +121,7 @@ class MainActivity : ComponentActivity() {
                                     required += Manifest.permission.ACTIVITY_RECOGNITION
                                 }
                                 val needsPermission = required.any {
-                                    ContextCompat.checkSelfPermission(activity, it) !=
-                                            PackageManager.PERMISSION_GRANTED
+                                    ContextCompat.checkSelfPermission(activity, it) != PackageManager.PERMISSION_GRANTED
                                 }
                                 if (needsPermission) {
                                     permissionLauncher.launch(required.toTypedArray())
@@ -176,16 +138,10 @@ class MainActivity : ComponentActivity() {
                             bleScanner.stopScan()
                             stepTracker.reset()
                             radarEngine.reset()
-                            walkPath.clear()
-                            walkPath.add(Offset(0f, 0f))
-                            stateTargets.value    = emptyList()
+                            stateTargets.value = emptyList()
                             statePackets.intValue = 0
-                            stateLastDevice.value = "---"
-                            stateSteps.intValue   = 0
+                            stateSteps.intValue = 0
                             stateDistance.floatValue = 0f
-                            stateUserX.floatValue = 0f
-                            stateUserY.floatValue = 0f
-                            stateScanStatus.value = "IDLE"
                         }
                     )
                 }

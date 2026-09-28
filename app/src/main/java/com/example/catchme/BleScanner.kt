@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
-import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
@@ -37,7 +36,6 @@ class BleScanner(
 
     private var isReceiverRegistered = false
 
-    // Classic Bluetooth Receiver (Catches CHETNA, boAt, Mivi, TVs)
     private val classicReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context?, intent: Intent?) {
             if (intent?.action == BluetoothDevice.ACTION_FOUND) {
@@ -51,7 +49,6 @@ class BleScanner(
 
                     val rssi: Short = intent.getShortExtra(BluetoothDevice.EXTRA_RSSI, (-65).toShort())
 
-                    // Safe name extraction to prevent SecurityException
                     val rawName = try {
                         device?.name ?: "Nearby Device"
                     } catch (_: SecurityException) {
@@ -68,14 +65,11 @@ class BleScanner(
                             rssi = rssi.toInt()
                         )
                     )
-                } catch (e: Exception) {
-                    // Safe catch
-                }
+                } catch (_: Exception) {}
             }
         }
     }
 
-    // BLE Scanner (Catches Smartwatches & Beacons)
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
             result?.let {
@@ -95,15 +89,13 @@ class BleScanner(
                             rssi = it.rssi
                         )
                     )
-                } catch (e: Exception) {
-                    // Safe catch
-                }
+                } catch (_: Exception) {}
             }
         }
 
         override fun onScanFailed(errorCode: Int) {
             Handler(Looper.getMainLooper()).post {
-                Toast.makeText(context, "BLE Error: $errorCode", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "BLE scan error: $errorCode", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -111,12 +103,13 @@ class BleScanner(
     private fun categorizeDevice(name: String): String {
         val lower = name.lowercase()
         return when {
-            lower.contains("chetna") || lower.contains("phone") || lower.contains("nord") -> "Phone"
-            lower.contains("xtend") || lower.contains("watch") -> "Smartwatch"
-            lower.contains("boat") -> "boAt"
-            lower.contains("mivi") || lower.contains("pod") || lower.contains("ear") -> "Earbuds"
-            lower.contains("apple") || lower.contains("iphone") -> "Apple"
+            lower.contains("phone") || lower.contains("nord") || lower.contains("pixel") || lower.contains("redmi") -> "Phone"
+            lower.contains("watch") || lower.contains("xtend") || lower.contains("band") -> "Smartwatch"
+            lower.contains("boat") -> "boAt Audio"
+            lower.contains("mivi") || lower.contains("pod") || lower.contains("ear") || lower.contains("airpod") -> "Earbuds"
+            lower.contains("apple") || lower.contains("iphone") || lower.contains("ipad") -> "Apple"
             lower.contains("samsung") || lower.contains("galaxy") -> "Samsung"
+            lower.contains("stb") || lower.contains("tv") -> "Smart TV / STB"
             else -> if (name != "Unknown" && name != "Nearby Device") name else "Device"
         }
     }
@@ -125,13 +118,13 @@ class BleScanner(
     fun startScan() {
         val adapter = bluetoothAdapter
         if (adapter == null || !adapter.isEnabled) {
-            Toast.makeText(context, "Turn ON Bluetooth!", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Bluetooth is disabled", Toast.LENGTH_LONG).show()
             onStatusUpdate("BT_OFF")
             return
         }
 
         try {
-            onStatusUpdate("REGISTERING...")
+            onStatusUpdate("REGISTERING")
 
             if (!isReceiverRegistered) {
                 val filter = IntentFilter(BluetoothDevice.ACTION_FOUND)
@@ -145,7 +138,7 @@ class BleScanner(
 
             if (adapter.isDiscovering) adapter.cancelDiscovery()
             val classicOk = adapter.startDiscovery()
-            onStatusUpdate(if (classicOk) "CLASSIC_OK" else "CLASSIC_FAIL")
+            onStatusUpdate(if (classicOk) "DISCOVERY_ACTIVE" else "DISCOVERY_FAILED")
 
             val bleScannerObj = adapter.bluetoothLeScanner
             if (bleScannerObj != null) {
@@ -156,16 +149,16 @@ class BleScanner(
                 )
                 onStatusUpdate("SCANNING")
             } else {
-                onStatusUpdate("BLE_NULL")
+                onStatusUpdate("BLE_UNAVAILABLE")
             }
 
             isScanning = true
 
         } catch (e: SecurityException) {
-            onStatusUpdate("SEC_ERR")
-            Toast.makeText(context, "Enable 'Nearby devices' in App Settings!", Toast.LENGTH_LONG).show()
+            onStatusUpdate("PERMISSION_DENIED")
+            Toast.makeText(context, "Nearby devices permission required", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
-            onStatusUpdate("ERR: ${e.message?.take(20)}")
+            onStatusUpdate("ERROR")
         }
     }
 

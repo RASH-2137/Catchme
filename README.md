@@ -1,84 +1,89 @@
-# ⚡ CatchMe // Tactical Bluetooth Radar
+# CatchMe: Real-Time Tactical Bluetooth & BLE Radar
 
-An innovative Android tactical navigation and radio sniffing radar built with **Jetpack Compose** and **Kotlin**. 
-
-CatchMe turns your smartphone into a real-time Bluetooth detection HUD that tracks nearby devices (phones, smartwatches, earbuds, smart TVs), estimates their distance through walls, and dynamically rotates the radar canvas using your device's hardware compass — like a video game mini-map.
+CatchMe is an Android application that transforms a commercial smartphone into a 360° tactical radio presence radar. By fusing dual-mode Bluetooth scanning with on-device inertial sensors and Pedestrian Dead Reckoning (PDR), the app visualizes nearby active radio nodes relative to the user's physical orientation in real time.
 
 ---
 
-## 🌟 Key Features
+## Key Features
 
-- **📡 Dual-Mode Radio Sniffer:**
-  - **Bluetooth Low Energy (BLE):** Scans smartwatches, fitness trackers, and beacons with low-latency callbacks.
-  - **Classic Bluetooth (BR/EDR):** Discovers broadcast-enabled smartphones, wireless headphones, and TVs.
-- **🧭 "Heading-Up" 360° Tactical Radar:**
-  - Directly binds to Android's `TYPE_ROTATION_VECTOR` hardware sensor.
-  - As you turn your body, the entire radar rotates smoothly so the direction you are facing is always **UP**.
-  - Turn towards any target blip to face it directly in the real world.
-- **🚶 Pedestrian Dead Reckoning (PDR):**
-  - Integrated with `TYPE_STEP_DETECTOR` to track real steps taken and walking distance in meters.
-- **🧱 Wall Attenuation & Path-Loss Distance Modeling:**
-  - Implements logarithmic radio frequency path-loss equations.
-  - Dynamically calculates two distances for every device: **Open Air Distance** ($n = 2.0$) and **Through-Wall Distance** ($n = 2.8$ with drywall attenuation factor).
-- **🎯 Smart Target Inspector:**
-  - Expandable HUD drawer displaying active targets sorted by signal strength (RSSI).
-  - Automatically times out and prunes silent devices after 25 seconds.
-  - Custom brand & model recognition (boAt, XTEND, Fire-Boltt, Apple, Samsung, etc.).
-- **🎨 Modern Tactical Interface:**
-  - Built 100% in Jetpack Compose with custom hardware-accelerated Canvas rendering.
-  - Custom player avatar at center with live degree and cardinal badge.
+- **Dual-Mode Radio Sniffing**: Simultaneously intercepts Bluetooth Low Energy (BLE) advertisements and Classic Bluetooth discovery frames (`ACTION_FOUND`).
+- **Heading-Up Spatial Transform**: Uses on-device `TYPE_ROTATION_VECTOR` sensor data to continuously rotate radar elements so that the user's forward heading is always mapped to the top of the display.
+- **Signal-to-Distance Modeling**: Applies log-distance path loss approximation with multi-environment attenuation profiles (free-space vs. obstructed/wall models).
+- **Pedestrian Dead Reckoning (PDR)**: Tracks user physical displacement using hardware step sensors (`TYPE_STEP_DETECTOR`) and directional orientation matrices.
+- **Dynamic Target Filtering**: Automatically resolves manufacturer prefixes (smartwatches, smartphones, audio peripherals, IoT units) and drops stale radio traces after timeout intervals.
+- **Modern Jetpack Compose Canvas**: High-performance UI rendering running hardware-accelerated animations and live target blips.
 
 ---
 
-## 📸 Screenshots
+## System Architecture
 
-| Tactical Radar HUD | Target Inspector Drawer |
-|:---:|:---:|
-| *(Add your screenshot here)* | *(Add your screenshot here)* |
-
----
-
-## 🛠️ Architecture & Tech Stack
-
-- **Language:** Kotlin 2.0+
-- **UI Framework:** Jetpack Compose (Material3)
-- **Min SDK:** 26 (Android 8.0 Oreo)
-- **Target SDK:** 34 / 36 (Android 14 / Android 16 ready)
-- **Hardware Sensors:**
-  - `BluetoothAdapter` & `BluetoothLeScanner`
-  - `Sensor.TYPE_ROTATION_VECTOR`
-  - `Sensor.TYPE_STEP_DETECTOR`
-
-### Project Structure
 ```text
-com.example.catchme
-├── MainActivity.kt      // Application entry point, system coordination, permission handling
-├── BleScanner.kt        // Dual-mode radio scanner (BLE + Classic discovery)
-├── RadarEngine.kt       // RF path-loss calculation, peak heading estimation & target tracking
-├── StepTracker.kt       // Pedestrian Dead Reckoning (PDR) step counting & compass calculations
-└── RadarScreen.kt       // Custom Jetpack Compose Canvas radar, sweep animation & HUD drawer
+[ BLE Advertising / Classic Inquiries ]
+                 │
+                 ▼
+          [ BleScanner ] ──(Raw Signals)──┐
+                                          ▼
+                                   [ RadarEngine ] ──(Target State)──┐
+                                          ▲                          │
+[ Device Sensors: Accelerometer/Gyro ]    │                          │
+                 │                        │                          ▼
+                 ▼                        │                   [ RadarScreen ]
+          [ StepTracker ] ──(PDR Vectors)─┘                (Jetpack Compose UI)
 ```
+
+### Components
+
+1. **`BleScanner.kt`**: Manages hardware scan callbacks, handles Android 12/13/14+ security permissions (`BLUETOOTH_SCAN`, `BLUETOOTH_CONNECT`, `RECEIVER_EXPORTED`), and emits uniform signal packets across hardware protocols.
+2. **`RadarEngine.kt`**: Computes relative distance approximations using RSSI log-distance path loss calculations:
+   $$d = 10^{\frac{TxPower - RSSI}{10 \cdot n}}$$
+   It filters signal transients and maps peak heading directions.
+3. **`StepTracker.kt`**: Implements step detection and rotation vector orientation parsing, converting raw quaternions to azimuth headings.
+4. **`RadarScreen.kt`**: Custom Compose canvas rendering polar range rings, animated sweep beams, and relative target indicators.
 
 ---
 
-## 🚀 Getting Started
+## Tech Stack & Requirements
 
-### Prerequisites
-- Android Studio Ladybug or newer
-- Android device running Android 8.0+ (Must support Bluetooth LE and Gyroscope/Magnetometer)
+- **Language**: Kotlin 2.0+
+- **UI Framework**: Jetpack Compose with Material 3
+- **Architecture**: Unidirectional Data Flow (State & Callbacks)
+- **Min SDK**: API 26 (Android 8.0 Oreo)
+- **Target SDK**: API 36 (Android 16)
+- **Hardware Dependencies**: Bluetooth Radio, Accelerometer, Magnetometer / Rotation Vector Sensor
 
-### Clone & Run
+---
+
+## Getting Started
+
+### 1. Clone the repository
 ```bash
-git clone https://github.com/<YOUR_USERNAME>/CatchMe.git
-cd CatchMe
+git clone https://github.com/<your-username>/Catchme.git
+cd Catchme
 ```
-1. Open the project in **Android Studio**.
-2. Connect your phone via USB (or install the pre-built APK).
-3. Grant **Location**, **Nearby Devices**, and **Physical Activity** permissions when prompted.
-4. Tap **START RADAR** and walk around!
+
+### 2. Open in Android Studio
+- Open Android Studio (Ladybug or newer recommended).
+- Select **File > Open** and choose the cloned repository folder.
+- Allow Gradle to sync dependencies.
+
+### 3. Build & Run
+- Connect an Android device with Developer Mode & USB Debugging enabled.
+- Ensure Bluetooth and Location services are enabled on the test device.
+- Click **Run ('app')** (`Shift + F10`).
 
 ---
 
-## 👨‍💻 Author
-- **Rahul**
-- Built with passion as an Android Systems & Sensor Integration project.
+## Permissions Handled
+
+The application requests the following runtime permissions per Android security specifications:
+- `android.permission.BLUETOOTH_SCAN`
+- `android.permission.BLUETOOTH_CONNECT`
+- `android.permission.ACCESS_FINE_LOCATION`
+- `android.permission.ACCESS_COARSE_LOCATION`
+- `android.permission.ACTIVITY_RECOGNITION`
+
+---
+
+## License
+
+This project is licensed under the MIT License.

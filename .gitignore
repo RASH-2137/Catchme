@@ -1,18 +1,17 @@
 *.iml
 .gradle
 /local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
+/.idea
 .DS_Store
 /build
 /captures
 .externalNativeBuild
 .cxx
 local.properties
+
+# Android Keystores & sensitive keys (never commit secrets)
 *.jks
 *.keystore
-app/build/
+release-key.jks
+catchme_release.jks
+Catchme.jks

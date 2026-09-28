@@ -53,7 +53,6 @@ class StepTracker(
     override fun onSensorChanged(event: SensorEvent?) {
         if (event == null) return
 
-        // 1. Calculate Compass Heading (Degrees & Cardinal Direction)
         if (event.sensor.type == Sensor.TYPE_ROTATION_VECTOR) {
             val rotationMatrix = FloatArray(9)
             SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
@@ -61,13 +60,11 @@ class StepTracker(
             SensorManager.getOrientation(rotationMatrix, orientation)
             currentHeadingRadians = orientation[0]
 
-            // Convert radians (-PI to +PI) to 0° - 360°
             val degrees = ((Math.toDegrees(currentHeadingRadians.toDouble()) + 360) % 360).toInt()
-            val cardinal = getCardinalDirection(degrees)
+            val cardinal = resolveCardinalDirection(degrees)
             onHeadingChanged(degrees, cardinal)
         }
 
-        // 2. Track Physical Footsteps
         if (event.sensor.type == Sensor.TYPE_STEP_DETECTOR) {
             totalSteps++
             totalDistance += strideLengthMeters
@@ -79,7 +76,7 @@ class StepTracker(
         }
     }
 
-    private fun getCardinalDirection(degrees: Int): String {
+    private fun resolveCardinalDirection(degrees: Int): String {
         return when (degrees) {
             in 23..67 -> "NE"
             in 68..112 -> "E"

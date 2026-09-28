@@ -2,7 +2,12 @@ package com.example.catchme
 
 import android.graphics.Paint
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -21,7 +26,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -30,14 +34,14 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 val TargetColors = listOf(
-    Color(0xFFFFEA00), // Yellow
-    Color(0xFF00E5FF), // Cyan
-    Color(0xFFFF1744), // Red
-    Color(0xFFE040FB), // Purple
-    Color(0xFFFF9100), // Orange
-    Color(0xFF76FF03), // Lime
-    Color(0xFFFF4081), // Pink
-    Color(0xFF40C4FF)  // Light Blue
+    Color(0xFFFFEA00),
+    Color(0xFF00E5FF),
+    Color(0xFFFF1744),
+    Color(0xFFE040FB),
+    Color(0xFFFF9100),
+    Color(0xFF76FF03),
+    Color(0xFFFF4081),
+    Color(0xFF40C4FF)
 )
 
 @Composable
@@ -45,20 +49,15 @@ fun RadarScreen(
     isScanning: Boolean,
     stepCount: Int,
     distanceWalked: Float,
-    userX: Float,
-    userY: Float,
     headingDegrees: Int,
     cardinalHeading: String,
-    corridorWidthMeters: Float,
-    onCorridorWidthChanged: (Float) -> Unit,
-    walkPath: List<Offset>,
     targets: List<RadarBlip>,
     onToggleScan: () -> Unit,
     onReset: () -> Unit
 ) {
     var isDropdownExpanded by remember { mutableStateOf(false) }
 
-    val infiniteTransition = rememberInfiniteTransition(label = "sweep")
+    val infiniteTransition = rememberInfiniteTransition(label = "sweepAnimation")
     val sweepAngle by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
@@ -66,7 +65,7 @@ fun RadarScreen(
             animation = tween(3000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "sweep"
+        label = "radarSweep"
     )
 
     Column(
@@ -76,28 +75,25 @@ fun RadarScreen(
             .padding(horizontal = 14.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-
-        // ── Title ───────────────────────────────────────────────────────
         Text(
-            "⚡ CATCH ME // TACTICAL RADAR ⚡",
+            text = "CATCH ME // TACTICAL RADAR",
             color = Color(0xFF00FF66),
             fontSize = 15.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
         )
 
-        // ── Metrics ─────────────────────────────────────────────────────
         Row(
-            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            MetricCard("STEPS",    "$stepCount",                    Modifier.weight(1f))
-            MetricCard("WALKED",   "%.1fm".format(distanceWalked),  Modifier.weight(1f))
-            MetricCard("TARGETS",  "${targets.size}",               Modifier.weight(1f),
-                highlight = targets.isNotEmpty())
+            MetricCard("STEPS", "$stepCount", Modifier.weight(1f))
+            MetricCard("WALKED", "%.1fm".format(distanceWalked), Modifier.weight(1f))
+            MetricCard("TARGETS", "${targets.size}", Modifier.weight(1f), highlight = targets.isNotEmpty())
         }
 
-        // ── Target List Dropdown ─────────────────────────────────────────
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -111,31 +107,33 @@ fun RadarScreen(
         ) {
             Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
                 Row(
-                    Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        if (targets.isEmpty()) "📡 Scanning — Walk Around to Detect"
-                        else                   "🎯 Targets In Range (${targets.size})",
+                        text = if (targets.isEmpty()) "Scanning for nearby devices..."
+                        else "Detected Targets (${targets.size})",
                         color = if (targets.isEmpty()) Color.Gray else Color(0xFF00FF66),
-                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        if (isDropdownExpanded) "▲ Hide" else "▼ Details",
-                        color = Color(0xFF00E5FF), fontSize = 11.sp
+                        text = if (isDropdownExpanded) "▲ Hide" else "▼ Details",
+                        color = Color(0xFF00E5FF),
+                        fontSize = 11.sp
                     )
                 }
 
                 AnimatedVisibility(visible = isDropdownExpanded && targets.isNotEmpty()) {
                     Column(
-                        Modifier.padding(top = 6.dp),
+                        modifier = Modifier.padding(top = 6.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        targets.forEachIndexed { i, target ->
-                            val col = TargetColors[i % TargetColors.size]
+                        targets.forEachIndexed { index, target ->
+                            val color = TargetColors[index % TargetColors.size]
                             Row(
-                                Modifier
+                                modifier = Modifier
                                     .fillMaxWidth()
                                     .background(Color(0xFF091118), RoundedCornerShape(6.dp))
                                     .padding(horizontal = 8.dp, vertical = 5.dp),
@@ -143,35 +141,45 @@ fun RadarScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    // Numbered dot
                                     Box(
-                                        Modifier.size(18.dp).background(col, CircleShape),
+                                        modifier = Modifier
+                                            .size(18.dp)
+                                            .background(color, CircleShape),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Text("${i + 1}", color = Color.Black,
-                                            fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        Text(
+                                            text = "${index + 1}",
+                                            color = Color.Black,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
                                     }
-                                    Spacer(Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Column {
                                         Text(
-                                            target.deviceId.take(22),
+                                            text = target.deviceId.take(22),
                                             color = Color.White,
-                                            fontSize = 12.sp, fontWeight = FontWeight.Bold
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
                                         )
                                         Text(
-                                            "RSSI: ${target.maxRssi} dBm  |  Peak dir: ${target.peakHeadingDegrees}°",
-                                            color = Color.Gray, fontSize = 10.sp
+                                            text = "RSSI: ${target.maxRssi} dBm | Peak: ${target.peakHeadingDegrees}°",
+                                            color = Color.Gray,
+                                            fontSize = 10.sp
                                         )
                                     }
                                 }
                                 Column(horizontalAlignment = Alignment.End) {
                                     Text(
-                                        "Air: %.1fm".format(target.openAirDistance),
-                                        color = col, fontSize = 11.sp, fontWeight = FontWeight.Bold
+                                        text = "Air: %.1fm".format(target.openAirDistance),
+                                        color = color,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
                                     )
                                     Text(
-                                        "Wall: ~%.1fm".format(target.wallDistance),
-                                        color = col.copy(alpha = 0.7f), fontSize = 10.sp
+                                        text = "Wall: ~%.1fm".format(target.wallDistance),
+                                        color = color.copy(alpha = 0.7f),
+                                        fontSize = 10.sp
                                     )
                                 }
                             }
@@ -181,7 +189,6 @@ fun RadarScreen(
             }
         }
 
-        // ── Radar Canvas ─────────────────────────────────────────────────
         BoxWithConstraints(
             modifier = Modifier
                 .weight(1f)
@@ -190,80 +197,65 @@ fun RadarScreen(
                 .border(1.dp, Color(0xFF132330), RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center
         ) {
-            val bw = constraints.maxWidth.toFloat()
-            val bh = constraints.maxHeight.toFloat()
-            val cx = bw / 2f
-            val cy = bh / 2f
+            val boxWidth = constraints.maxWidth.toFloat()
+            val boxHeight = constraints.maxHeight.toFloat()
+            val centerX = boxWidth / 2f
+            val centerY = boxHeight / 2f
+            val maxRadius = minOf(boxWidth, boxHeight) * 0.42f
 
-            // Max visual radius on screen = 42% of shortest dimension
-            val maxRadius = minOf(bw, bh) * 0.42f
-
-            Canvas(Modifier.fillMaxSize()) {
-
-                // ── Range rings ────────────────────────────────────────
-                val ringLabels = listOf(1f, 3f, 5f, 10f)   // meters
-                ringLabels.forEach { meters ->
-                    val r = (meters / 10f) * maxRadius * 2f
-                    if (r < maxRadius * 1.1f) {
-                        drawCircle(Color(0xFF0D2030), r, Offset(cx, cy))
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val rangeRings = listOf(1f, 3f, 5f, 10f)
+                rangeRings.forEach { meters ->
+                    val radius = (meters / 10f) * maxRadius * 2f
+                    if (radius < maxRadius * 1.1f) {
+                        drawCircle(Color(0xFF0D2030), radius, Offset(centerX, centerY))
                     }
                 }
 
-                // ── "N" direction tick (always up = North) ─────────────
                 drawLine(
                     color = Color(0xFF1E3A4A),
-                    start = Offset(cx, cy - maxRadius),
-                    end   = Offset(cx, cy - maxRadius * 0.65f),
+                    start = Offset(centerX, centerY - maxRadius),
+                    end = Offset(centerX, centerY - maxRadius * 0.65f),
                     strokeWidth = 2f
                 )
 
-                // ── Sweep beam ─────────────────────────────────────────
                 if (isScanning) {
                     val sweepRad = Math.toRadians(sweepAngle.toDouble())
-                    val sx = cx + (maxRadius * sin(sweepRad)).toFloat()
-                    val sy = cy - (maxRadius * cos(sweepRad)).toFloat()
+                    val sweepX = centerX + (maxRadius * sin(sweepRad)).toFloat()
+                    val sweepY = centerY - (maxRadius * cos(sweepRad)).toFloat()
                     drawLine(
-                        Brush.linearGradient(
-                            listOf(Color(0xFF00FF66).copy(0.5f), Color.Transparent),
-                            Offset(cx, cy), Offset(sx, sy)
+                        brush = Brush.linearGradient(
+                            listOf(Color(0xFF00FF66).copy(alpha = 0.5f), Color.Transparent),
+                            Offset(centerX, centerY),
+                            Offset(sweepX, sweepY)
                         ),
-                        Offset(cx, cy), Offset(sx, sy), strokeWidth = 2.5f
+                        start = Offset(centerX, centerY),
+                        end = Offset(sweepX, sweepY),
+                        strokeWidth = 2.5f
                     )
                 }
 
-                // ── Target blips (heading-relative positioning) ─────────
-                // Each target appears at the compass angle where signal peaked,
-                // relative to where the user is currently facing.
-                // → If you turn to face the watch, it moves to the TOP of the screen.
-                targets.forEachIndexed { i, target ->
-                    val col = TargetColors[i % TargetColors.size]
+                targets.forEachIndexed { index, target ->
+                    val color = TargetColors[index % TargetColors.size]
+                    val relativeAngleDeg = ((target.peakHeadingDegrees - headingDegrees) + 360) % 360
+                    val relativeRad = Math.toRadians(relativeAngleDeg.toDouble())
 
-                    // Angular difference: how far is the peak direction from current heading
-                    val relAngleDeg = ((target.peakHeadingDegrees - headingDegrees) + 360) % 360
-                    val relRad      = Math.toRadians(relAngleDeg.toDouble())
+                    val clampedRssi = target.maxRssi.toFloat().coerceIn(-95f, -30f)
+                    val radialFraction = ((clampedRssi - (-30f)) / (-95f - (-30f))).coerceIn(0.15f, 0.9f)
+                    val radialDistance = radialFraction * maxRadius
 
-                    // Radial distance: scale RSSI to 10% – 90% of maxRadius
-                    // Stronger signal (higher dBm value, less negative) → closer to center
-                    val rssiClamped = target.maxRssi.toFloat().coerceIn(-95f, -30f)
-                    // Map -30 dBm → 15% of radius, -95 dBm → 90% of radius
-                    val radialFraction = ((rssiClamped - (-30f)) / (-95f - (-30f)))
-                        .coerceIn(0.15f, 0.9f)
-                    val radialPx = radialFraction * maxRadius
+                    val targetX = centerX + (sin(relativeRad) * radialDistance).toFloat()
+                    val targetY = centerY - (cos(relativeRad) * radialDistance).toFloat()
 
-                    val tx = cx + (sin(relRad) * radialPx).toFloat()
-                    val ty = cy - (cos(relRad) * radialPx).toFloat()
+                    drawCircle(color.copy(alpha = 0.28f), 24f, Offset(targetX, targetY))
+                    drawCircle(color, 11f, Offset(targetX, targetY))
 
-                    // Pulse ring
-                    drawCircle(col.copy(alpha = 0.28f), 24f, Offset(tx, ty))
-                    // Solid blip
-                    drawCircle(col, 11f, Offset(tx, ty))
-
-                    // Numbered label inside blip (clean, no external text)
                     drawContext.canvas.nativeCanvas.drawText(
-                        "${i + 1}",
-                        tx - 5f, ty + 6f,
+                        "${index + 1}",
+                        targetX - 5f,
+                        targetY + 6f,
                         Paint().apply {
-                            color = android.graphics.Color.BLACK
+                            this.color = android.graphics.Color.BLACK
                             textSize = 16f
                             isFakeBoldText = true
                         }
@@ -271,13 +263,19 @@ fun RadarScreen(
                 }
             }
 
-            // ── Avatar pinned at center ─────────────────────────────────
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.size(50.dp), contentAlignment = Alignment.Center) {
-                    Box(Modifier.size(48.dp).background(Color(0xFF00FF66).copy(0.2f), CircleShape))
+                Box(
+                    modifier = Modifier.size(50.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(Color(0xFF00FF66).copy(alpha = 0.2f), CircleShape)
+                    )
                     Image(
-                        painterResource(R.drawable.prof),
-                        contentDescription = "You",
+                        painter = painterResource(R.drawable.prof),
+                        contentDescription = "User",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .size(38.dp)
@@ -285,31 +283,32 @@ fun RadarScreen(
                             .border(2.dp, Color(0xFF00FF66), CircleShape)
                     )
                 }
-                // Compass badge under avatar
+
                 Surface(
                     shape = RoundedCornerShape(10.dp),
                     color = Color(0xFF0C1721),
                     border = CardDefaults.outlinedCardBorder().copy(
-                        brush = Brush.horizontalGradient(
-                            listOf(Color(0xFF00E5FF), Color(0xFF00FF66))
-                        )
+                        brush = Brush.horizontalGradient(listOf(Color(0xFF00E5FF), Color(0xFF00FF66)))
                     ),
                     modifier = Modifier.padding(top = 2.dp)
                 ) {
                     Text(
-                        "🧭 $cardinalHeading $headingDegrees°",
+                        text = "🧭 $cardinalHeading $headingDegrees°",
                         color = Color.White,
-                        fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                     )
                 }
             }
         }
 
-        Spacer(Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
-        // ── Buttons ──────────────────────────────────────────────────────
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             Button(
                 onClick = onToggleScan,
                 modifier = Modifier.weight(1f),
@@ -318,11 +317,15 @@ fun RadarScreen(
                 )
             ) {
                 Text(
-                    if (isScanning) "STOP RADAR" else "START RADAR",
-                    color = Color.Black, fontWeight = FontWeight.Bold
+                    text = if (isScanning) "STOP RADAR" else "START RADAR",
+                    color = Color.Black,
+                    fontWeight = FontWeight.Bold
                 )
             }
-            OutlinedButton(onClick = onReset, modifier = Modifier.weight(0.5f)) {
+            OutlinedButton(
+                onClick = onReset,
+                modifier = Modifier.weight(0.5f)
+            ) {
                 Text("RESET", color = Color.White)
             }
         }
@@ -331,7 +334,8 @@ fun RadarScreen(
 
 @Composable
 fun MetricCard(
-    label: String, value: String,
+    label: String,
+    value: String,
     modifier: Modifier = Modifier,
     highlight: Boolean = false
 ) {
@@ -344,14 +348,15 @@ fun MetricCard(
         )
     ) {
         Column(
-            Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(label, color = Color.Gray, fontSize = 10.sp)
             Text(
-                value,
+                text = value,
                 color = if (highlight) Color(0xFFFF1744) else Color(0xFF00E5FF),
-                fontSize = 16.sp, fontWeight = FontWeight.Bold
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
             )
         }
     }
