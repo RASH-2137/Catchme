@@ -83,7 +83,3 @@ The application requests the following runtime permissions per Android security 
 - `android.permission.ACTIVITY_RECOGNITION`
 
 ---
-
-## License
-
-This project is licensed under the MIT License.
